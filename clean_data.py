@@ -10,8 +10,7 @@ import tensorflow as tf
 from cfg import *
 
 # FIXME Need to refactor into proper functions and stuff
-Path(cache_root).mkdir(exist_ok=True)
-Path(numpy_annotations_root).mkdir(exist_ok=True)
+Path(numpy_annotations_root).mkdir(exist_ok=True, parents=True)
 
 def json_to_output_vector(json_file_path, wav_file_path):
     fs, audio_data = wavfile.read(wav_file_path)
@@ -43,6 +42,15 @@ def json_to_output_vector(json_file_path, wav_file_path):
 
     raise("We shouldn't have reached this point")
 
+def update_metadata(metadata, beat_annotation_array):
+    metadata['max_sequence_length'] = \
+        max(metadata['max_sequence_length'], len(beat_annotation_array))
+
+    classes, current_class_counts = np.unique(beat_annotation_array, return_counts=True)
+    metadata['class_count'][0] += int(current_class_counts[0])
+    metadata['class_count'][1] += int(current_class_counts[1])
+
+metadata = { "max_sequence_length": 0, "class_count": {0: 0, 1: 0} }
 
 for root, dirs, files in os.walk(wav_data_root):
     for f in files:
@@ -51,13 +59,11 @@ for root, dirs, files in os.walk(wav_data_root):
         annotation_path = os.path.join(numpy_annotations_root, f + ".npy")
 
         beat_annotation_array = json_to_output_vector(json_file_path, wav_file_path)
-        beat_annotation_tfrecord_feature = tf.train.Feature(
-                int64_list=tf.train.Int64List(value=beat_annotation_array))
-        feature = { 'beat_locations_44100-hz-1024-samples': beat_annotation_tfrecord_feature }
-        example_proto = tf.train.Example(features=tf.train.Features(feature=feature))
+        update_metadata(metadata, beat_annotation_array)
+        np.save(annotation_path, beat_annotation_array) 
 
         print(wav_file_path)
-        with open(annotation_path, 'wb') as f:
-            f.write(example_proto.SerializeToString())
 
-        np.save(annotation_path, beat_annotation_array) 
+# TODO Put schema into cfg.py
+with open(dataset_metadata_path, 'w') as f:
+    json.dump(metadata, f)
