@@ -39,5 +39,6 @@ def add_padding(fft, annotations):
     fft = tf.pad(fft, [[0, max_sequence_length - tf.shape(fft)[0]], [0,0]])
     fft = tf.expand_dims(fft, 0)
     annotations = tf.pad(annotations, [[0, max_sequence_length - tf.shape(annotations)[0]]])
+    annotations = tf.expand_dims(annotations, 0)
 
     return fft, annotations
