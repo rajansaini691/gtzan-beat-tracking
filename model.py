@@ -24,17 +24,21 @@ baseline_model = tf.keras.Sequential([
     # Calculate spectral features
     tf.keras.layers.Reshape((max_sequence_length, spectrum_size, 1),
         input_shape=(max_sequence_length, spectrum_size)),
-    tf.keras.layers.Conv2D(10, kernel_size=(3,3), padding='same',
-        input_shape=(max_sequence_length, spectrum_size), activation='relu'),
-    tf.keras.layers.Conv2D(10, kernel_size=(3,3), padding='same',
-        input_shape=(max_sequence_length, spectrum_size), activation='relu'),
-    tf.keras.layers.Conv2D(1, kernel_size=(3,3), padding='same',
+    tf.keras.layers.Conv2D(10, kernel_size=(3,3),
+        input_shape=(max_sequence_length, spectrum_size), activation='relu',
+        padding='same'),
+    tf.keras.layers.MaxPool2D(pool_size=(1,3)),
+    tf.keras.layers.Conv2D(10, kernel_size=(3,3),
+        input_shape=(max_sequence_length, spectrum_size), activation='relu',
+        padding='same'),
+    tf.keras.layers.MaxPool2D(pool_size=(1,3)),
+    tf.keras.layers.Conv2D(1, kernel_size=(1,7),
         input_shape=(max_sequence_length, spectrum_size), activation='relu'),
 
     # Exploit temporal relationships
-    tf.keras.layers.Reshape((max_sequence_length, spectrum_size)),
-    TCN(nb_filters=128, input_shape=(max_sequence_length, spectrum_size),
-        dilations=(1, 2, 4, 8, 16, 32, 64, 128), kernel_size=2, return_sequences=True),
+    tf.keras.layers.Reshape((max_sequence_length, 50)),     # FIXME Don't hardcode
+    TCN(nb_filters=16, dilations=(1, 2, 4, 8, 16, 32, 64, 128),
+        kernel_size=2, return_sequences=True),
 
     # Get an output sequence vector
     tf.keras.layers.Dense(10, activation="relu"),
@@ -53,4 +57,4 @@ baseline_model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
         loss = lambda truth, pred : 
             tf.nn.weighted_cross_entropy_with_logits(tf.cast(truth, tf.float32), pred, pos_weight)
         )
-baseline_model.fit(dataset, epochs=1)
+baseline_model.fit(dataset, epochs=10)
