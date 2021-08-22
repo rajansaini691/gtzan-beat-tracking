@@ -16,45 +16,58 @@ spectrum_size = cfg.SAMPLE_SIZE//2 - 1
 # Get dataset
 dataset = tf.data.Dataset.list_files(cfg.wav_data_root + "*/*", shuffle=True)
 dataset = dataset.shuffle(1000, reshuffle_each_iteration=True)
-dataset = dataset.map(get_data_from_filename)
-dataset = dataset.map(add_padding)
+dataset = dataset.map(get_data_from_filename, num_parallel_calls=tf.data.AUTOTUNE)
+dataset = dataset.map(add_padding, num_parallel_calls=tf.data.AUTOTUNE)
+dataset = dataset.cache()
+dataset = dataset.prefetch(tf.data.AUTOTUNE)
 
 # Model
 baseline_model = tf.keras.Sequential([
     # Calculate spectral features
     tf.keras.layers.Reshape((max_sequence_length, spectrum_size, 1),
         input_shape=(max_sequence_length, spectrum_size)),
-    tf.keras.layers.Conv2D(10, kernel_size=(3,3),
+    tf.keras.layers.Conv2D(16, kernel_size=(3,3),
         input_shape=(max_sequence_length, spectrum_size), activation='relu',
         padding='same'),
     tf.keras.layers.MaxPool2D(pool_size=(1,3)),
-    tf.keras.layers.Conv2D(10, kernel_size=(3,3),
+    tf.keras.layers.Conv2D(16, kernel_size=(3,3),
         input_shape=(max_sequence_length, spectrum_size), activation='relu',
         padding='same'),
     tf.keras.layers.MaxPool2D(pool_size=(1,3)),
-    tf.keras.layers.Conv2D(1, kernel_size=(1,7),
-        input_shape=(max_sequence_length, spectrum_size), activation='relu'),
+    tf.keras.layers.Conv2D(16, kernel_size=(3,3),
+        input_shape=(max_sequence_length, spectrum_size), activation='relu',
+        padding='same'),
+    tf.keras.layers.MaxPool2D(pool_size=(1,3)),
+    tf.keras.layers.Conv2D(16, kernel_size=(3,3),
+        input_shape=(max_sequence_length, spectrum_size), activation='relu',
+        padding='same'),
+    tf.keras.layers.MaxPool2D(pool_size=(1,3)),
 
     # Exploit temporal relationships
-    tf.keras.layers.Reshape((max_sequence_length, 50)),     # FIXME Don't hardcode
+    tf.keras.layers.Reshape((max_sequence_length, 6*16)),     # FIXME Don't hardcode
     TCN(nb_filters=16, dilations=(1, 2, 4, 8, 16, 32, 64, 128),
         kernel_size=2, return_sequences=True),
 
     # Get an output sequence vector
-    tf.keras.layers.Dense(10, activation="relu"),
-    tf.keras.layers.Dense(1, activation="sigmoid"),
-    tf.keras.layers.Reshape((max_sequence_length,))
+    tf.keras.layers.Dense(1),
 ])
 
 # Weight classes, since dataset is heavily skewed towards negatives
 neg = metadata['class_count']['0']
 pos = metadata['class_count']['1']
-pos_weight = neg / pos
+pos_weight = neg / pos * 2
 
+
+def cross_entropy_loss(truth, pred):
+    truth = tf.cast(truth, tf.float32)
+    return tf.nn.weighted_cross_entropy_with_logits(truth, pred, pos_weight)
+
+tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=cfg.tensorboard_dir, histogram_freq=1)
+    
 # Train
-baseline_model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
-        metrics=['categorical_accuracy'],
-        loss = lambda truth, pred : 
-            tf.nn.weighted_cross_entropy_with_logits(tf.cast(truth, tf.float32), pred, pos_weight)
-        )
-baseline_model.fit(dataset, epochs=10)
+baseline_model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.00001),
+        loss = cross_entropy_loss)
+baseline_model.fit(dataset, epochs=30, callbacks=[tensorboard_callback])
+
+for x, y in dataset:
+    print(baseline_model.predict(x).shape)
