@@ -18,6 +18,7 @@ dataset = tf.data.Dataset.list_files(cfg.wav_data_root + "*/*", shuffle=True)
 dataset = dataset.shuffle(1000, reshuffle_each_iteration=True)
 dataset = dataset.map(get_data_from_filename, num_parallel_calls=tf.data.AUTOTUNE)
 dataset = dataset.map(add_padding, num_parallel_calls=tf.data.AUTOTUNE)
+dataset = dataset.batch(2)      # Can be higher on GPU
 dataset = dataset.cache()
 dataset = dataset.prefetch(tf.data.AUTOTUNE)
 
