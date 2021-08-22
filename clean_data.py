@@ -37,6 +37,11 @@ def json_to_output_vector(json_file_path, wav_file_path):
                     fourier_samples_from_start = int(samples_from_start / SAMPLE_SIZE)
                     if fourier_samples_from_start < len(output_annotations):
                         output_annotations[fourier_samples_from_start] = 1
+                    if fourier_samples_from_start < len(output_annotations) - 1:
+                        output_annotations[fourier_samples_from_start + 1] = 0.5
+                    if fourier_samples_from_start > 0 \
+                        and fourier_samples_from_start < len(output_annotations):
+                        output_annotations[fourier_samples_from_start - 1] = 0.5
 
                 return output_annotations
 
