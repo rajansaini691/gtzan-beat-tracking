@@ -69,5 +69,14 @@ baseline_model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.00001)
         loss = cross_entropy_loss)
 baseline_model.fit(dataset, epochs=30, callbacks=[tensorboard_callback])
 
+# Make a sample prediction
+np.set_printoptions(threshold=sys.maxsize)
 for x, y in dataset:
-    print(baseline_model.predict(x).shape)
+    y = tf.cast(y, tf.float32)
+    y = tf.reshape(y, (max_sequence_length,))
+    logits = baseline_model.predict(x)
+    logits = tf.reshape(logits, (max_sequence_length,))
+    pred = tf.math.sigmoid(logits)
+
+    print(tf.stack([pred, y]))
+    raise
