@@ -17,6 +17,7 @@ spectrum_size = cfg.SAMPLE_SIZE//2 - 1
 
 # Training config
 batch_size = 2
+test_dataset_size = 100
 checkpoint_dir = './out/ckpt'
 checkpoint_filepath = os.path.join(checkpoint_dir, 'checkpoint')
 Path(checkpoint_dir).mkdir(exist_ok=True, parents=True)
@@ -29,6 +30,9 @@ dataset = dataset.map(add_padding, num_parallel_calls=tf.data.AUTOTUNE)
 dataset = dataset.batch(batch_size)      # Can be higher on GPU
 dataset = dataset.cache()
 dataset = dataset.prefetch(tf.data.AUTOTUNE)
+
+test_dataset = dataset.take(test_dataset_size)
+train_dataset = dataset.skip(test_dataset_size)
 
 # Model
 baseline_model = tf.keras.Sequential([
@@ -87,7 +91,8 @@ def cross_entropy_loss(truth, pred):
 
 baseline_model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.00001),
         loss = cross_entropy_loss)
-baseline_model.fit(dataset, epochs=30, callbacks=[tensorboard_callback, model_checkpoint_callback])
+baseline_model.fit(train_dataset, epochs=30, validation_data=train_dataset,
+        callbacks=[tensorboard_callback, model_checkpoint_callback])
 
 # Make a sample prediction
 np.set_printoptions(threshold=sys.maxsize)
