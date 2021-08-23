@@ -1,9 +1,9 @@
 import tensorflow as tf
-from tcn import TCN
 import cfg
 import os
 import json
 from dataset import get_data_from_filename, add_padding
+from model import get_model_v1
 import numpy as np
 import sys
 from pathlib import Path
@@ -35,35 +35,7 @@ test_dataset = dataset.take(test_dataset_size)
 train_dataset = dataset.skip(test_dataset_size)
 
 # Model
-baseline_model = tf.keras.Sequential([
-    # Calculate spectral features
-    tf.keras.layers.Reshape((max_sequence_length, spectrum_size, 1),
-        input_shape=(max_sequence_length, spectrum_size)),
-    tf.keras.layers.Conv2D(16, kernel_size=(3,3),
-        input_shape=(max_sequence_length, spectrum_size), activation='relu',
-        padding='same'),
-    tf.keras.layers.MaxPool2D(pool_size=(1,3)),
-    tf.keras.layers.Conv2D(16, kernel_size=(3,3),
-        input_shape=(max_sequence_length, spectrum_size), activation='relu',
-        padding='same'),
-    tf.keras.layers.MaxPool2D(pool_size=(1,3)),
-    tf.keras.layers.Conv2D(16, kernel_size=(3,3),
-        input_shape=(max_sequence_length, spectrum_size), activation='relu',
-        padding='same'),
-    tf.keras.layers.MaxPool2D(pool_size=(1,3)),
-    tf.keras.layers.Conv2D(16, kernel_size=(3,3),
-        input_shape=(max_sequence_length, spectrum_size), activation='relu',
-        padding='same'),
-    tf.keras.layers.MaxPool2D(pool_size=(1,3)),
-
-    # Exploit temporal relationships
-    tf.keras.layers.Reshape((max_sequence_length, 6*16)),     # FIXME Don't hardcode
-    TCN(nb_filters=16, dilations=(1, 2, 4, 8, 16, 32, 64, 128),
-        kernel_size=2, return_sequences=True),
-
-    # Get an output sequence vector
-    tf.keras.layers.Dense(1),
-])
+model = get_model_v1(max_sequence_length, spectrum_size)
 
 # Weight classes, since dataset is heavily skewed towards negatives
 neg = metadata['class_count']['0']
@@ -82,16 +54,16 @@ model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
     save_best_only=True)
 
 if any(fname.startswith('checkpoint') for fname in os.listdir(checkpoint_dir)):
-    baseline_model.load_weights(checkpoint_filepath)
+    model.load_weights(checkpoint_filepath)
 
 # Train:
 def cross_entropy_loss(truth, pred):
     truth = tf.cast(truth, tf.float32)
     return tf.nn.weighted_cross_entropy_with_logits(truth, pred, pos_weight)
 
-baseline_model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.00001),
+model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.00001),
         loss = cross_entropy_loss)
-baseline_model.fit(train_dataset, epochs=30, validation_data=train_dataset,
+model.fit(train_dataset, epochs=30, validation_data=train_dataset,
         callbacks=[tensorboard_callback, model_checkpoint_callback])
 
 # Make a sample prediction
@@ -99,7 +71,7 @@ np.set_printoptions(threshold=sys.maxsize)
 for x, y in dataset:
     y = tf.cast(y, tf.float32)
     y = tf.reshape(y, (batch_size, max_sequence_length))
-    logits = baseline_model.predict(x)
+    logits = model.predict(x)
     logits = tf.reshape(logits, (batch_size, max_sequence_length))
     pred = tf.math.sigmoid(logits).numpy()
 
