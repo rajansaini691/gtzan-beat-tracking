@@ -18,9 +18,7 @@ spectrum_size = cfg.SAMPLE_SIZE//2 - 1
 # Training config
 batch_size = 2
 test_dataset_size = 100
-checkpoint_dir = './out/ckpt'
-checkpoint_filepath = os.path.join(checkpoint_dir, 'checkpoint')
-Path(checkpoint_dir).mkdir(exist_ok=True, parents=True)
+Path(cfg.checkpoint_dir).mkdir(exist_ok=True, parents=True)
 
 # Get dataset
 dataset = tf.data.Dataset.list_files(cfg.wav_data_root + "*/*", shuffle=True)
@@ -44,25 +42,28 @@ pos_weight = neg / pos * 2
 
 
 tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=cfg.tensorboard_dir, histogram_freq=1)
-    
+
 # Configure checkpoint and load weights if we can find any
 model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
-    filepath=checkpoint_filepath,
+    filepath=cfg.checkpoint_filepath,
     monitor='loss',
     mode='min',
     save_weights_only=True,
     save_best_only=True)
 
-if any(fname.startswith('checkpoint') for fname in os.listdir(checkpoint_dir)):
-    model.load_weights(checkpoint_filepath)
+if any(fname.startswith('checkpoint') for fname in os.listdir(cfg.checkpoint_dir)):
+    model.load_weights(cfg.checkpoint_filepath)
 
 # Train:
 def cross_entropy_loss(truth, pred):
     truth = tf.cast(truth, tf.float32)
     return tf.nn.weighted_cross_entropy_with_logits(truth, pred, pos_weight)
 
+def mse(truth, pred):
+    return tf.keras.metrics.mean_squared_error(truth, tf.math.sigmoid(pred))
+
 model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.00001),
-        loss = cross_entropy_loss)
+        loss = cross_entropy_loss, metrics=[mse])
 model.fit(train_dataset, epochs=30, validation_data=train_dataset,
         callbacks=[tensorboard_callback, model_checkpoint_callback])
 

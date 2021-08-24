@@ -21,6 +21,7 @@ def get_data_from_filename(wav_path):
     fft_raw = tf.map_fn(fn=tf.signal.fft, elems=tf.cast(wav_data_split, tf.complex64))
     fft_float = tf.map_fn(fn=tf.abs, elems=fft_raw, dtype=tf.float32)
     fft = tf.slice(fft_float, begin=[0, 0], size=[-1, tf.shape(fft_float)[1] // 2 - 1])
+    # TODO Look into whether to normalize fft here
 
     # Process annotations
     wav_filename = tf.strings.split(wav_path, '/')[-1]
@@ -37,8 +38,6 @@ def add_padding(fft, annotations):
     max_sequence_length = metadata['max_sequence_length']
 
     fft = tf.pad(fft, [[0, max_sequence_length - tf.shape(fft)[0]], [0,0]])
-    #fft = tf.expand_dims(fft, 0)
     annotations = tf.pad(annotations, [[0, max_sequence_length - tf.shape(annotations)[0]]])
-    #annotations = tf.expand_dims(annotations, 0)
 
     return fft, annotations

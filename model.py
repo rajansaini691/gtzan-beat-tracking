@@ -31,5 +31,3 @@ def get_model_v1(max_sequence_length, spectrum_size):
         # Get an output sequence vector
         tf.keras.layers.Dense(1),
     ])
-
-
